@@ -1,0 +1,557 @@
+[
+  {
+    "name": "Alchemist's Supplies",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "8 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Brewer's Supplies",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "9 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Calligrapher's Supplies",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Carpenter's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Strength",
+    "weight": "6 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Cartographer's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "6 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Cobbler's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Cook's Utensils",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "8 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Glassblower's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Jeweler's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Leatherworker's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Mason's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Strength",
+    "weight": "8 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Painter's Supplies",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Potter's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "3 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Smith's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Strength",
+    "weight": "8 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Tinker's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "10 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Weaver's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Woodcarver's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Disguise Kit",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "3 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Forgery Kit",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "5 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Herbalism Kit",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "3 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Navigator's Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Poisoner's Kit",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Intelligence",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Thieves' Tools",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Dexterity",
+    "weight": "1 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Dice",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "-",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Dragonchess",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "-",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Playing Cards",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "-",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Three-dragon Ante",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Wisdom",
+    "weight": "-",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Bagpipes",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "6 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Drum",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "3 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Dulcimer",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "10 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Flute",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "1 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Horn",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Lute",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Lyre",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Pan Flute",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "2 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Shawm",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "1 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  },
+  {
+    "name": "Viol",
+    "category": "Tool",
+    "sub_category": "Tool",
+    "cost": "Charisma",
+    "weight": "1 lb.",
+    "damage": null,
+    "properties": [],
+    "mastery": null,
+    "description": "A tool set/kit used for crafting or checks.",
+    "legacy": false,
+    "tags": [
+      "tool"
+    ]
+  }
+]

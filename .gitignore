@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Flutter-specific exclusions
+dnd_wiki/build/
+dnd_wiki/.dart_tool/
+dnd_wiki/.flutter-plugins
+dnd_wiki/.flutter-plugins-dependencies
+dnd_wiki/.packages
+dnd_wiki/app-release.apk

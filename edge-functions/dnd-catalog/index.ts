@@ -1,0 +1,1172 @@
+import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
+// Initialize the database connection pool globally for connection reuse
+const databaseUrl = Deno.env.get("SUPABASE_DB_URL");
+if (!databaseUrl) {
+  console.error("SUPABASE_DB_URL environment variable is missing!");
+}
+
+const sql = postgres(databaseUrl || "", {
+  ssl: "require",
+  // Max connections in the pool
+  max: 10,
+  // Idle timeout
+  idle_timeout: 20,
+  // Connect timeout
+  connect_timeout: 10,
+});
+
+// HELPER FUNCTIONS FOR TRANSLATIONS & MULTI-SCHEMA QUERYING
+
+function getCategoryForTable(table: string): string {
+  switch (table) {
+    case "spells": return "spell";
+    case "feats": return "feat";
+    case "classes": return "class";
+    case "subclasses": return "subclass";
+    case "species": return "species";
+    case "backgrounds": return "background";
+    case "equipment": return "equipment";
+    case "magic_items": return "magic_item";
+    default: return "";
+  }
+}
+
+async function translateText(text: string, targetLang: string): Promise<string> {
+  if (!text) return "";
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error(`Google Translate returned status ${res.status}`);
+      return text;
+    }
+    const data = await res.json();
+    if (data && data[0]) {
+      return data[0].map((x: any) => x[0]).join("");
+    }
+    return text;
+  } catch (err) {
+    console.error("Error calling translation API:", err);
+    return text;
+  }
+}
+
+async function translateAndSaveItem(
+  category: string,
+  enName: string,
+  enDescription: string,
+  lang: string
+) {
+  if (lang === "en" || !enName) return { name: enName, description: enDescription };
+
+  const nameCol = lang === "it" ? "it_name" : "da_name";
+  const descCol = lang === "it" ? "it_description" : "da_description";
+
+  let existing;
+  try {
+    existing = await sql`
+      SELECT id, it_name, it_description, da_name, da_description
+      FROM public.translations
+      WHERE category = ${category} AND en_name = ${enName}
+      LIMIT 1
+    `;
+  } catch (e) {
+    console.error(`Error checking existing translation for ${enName}:`, e);
+    existing = [];
+  }
+
+  let transName = "";
+  let transDesc = "";
+
+  if (existing && existing.length > 0) {
+    transName = existing[0][nameCol] || "";
+    transDesc = existing[0][descCol] || "";
+  }
+
+  let needsUpsert = false;
+  if (!transName) {
+    transName = await translateText(enName, lang);
+    needsUpsert = true;
+  }
+  if (!transDesc) {
+    transDesc = await translateText(enDescription, lang);
+    needsUpsert = true;
+  }
+
+  if (needsUpsert) {
+    try {
+      const itName = lang === "it" ? transName : null;
+      const itDesc = lang === "it" ? transDesc : null;
+      const daName = lang === "da" ? transName : null;
+      const daDesc = lang === "da" ? transDesc : null;
+
+      await sql`
+        INSERT INTO public.translations (category, en_name, it_name, it_description, da_name, da_description)
+        VALUES (${category}, ${enName}, ${itName}, ${itDesc}, ${daName}, ${daDesc})
+        ON CONFLICT (category, en_name) DO UPDATE SET
+          it_name = COALESCE(public.translations.it_name, EXCLUDED.it_name),
+          it_description = COALESCE(public.translations.it_description, EXCLUDED.it_description),
+          da_name = COALESCE(public.translations.da_name, EXCLUDED.da_name),
+          da_description = COALESCE(public.translations.da_description, EXCLUDED.da_description)
+      `;
+      console.log(`Successfully saved translation for [${category}] "${enName}" in ${lang}`);
+    } catch (e) {
+      console.error(`Error saving translation for ${enName}:`, e);
+    }
+  }
+
+  return { name: transName || enName, description: transDesc || enDescription };
+}
+
+async function processTranslations(results: any[], table: string, lang: string) {
+  if (lang === "en" || !results || results.length === 0) {
+    return results;
+  }
+
+  return await Promise.all(results.map(async (row) => {
+    if (row.translated_name && row.translated_description) {
+      return {
+        ...row,
+        name: row.translated_name,
+        description: row.translated_description
+      };
+    }
+
+    let category = getCategoryForTable(row.type || table);
+    if (category === "feat" && row.category === "invocation") {
+      category = "invocation";
+    }
+
+    const enName = row.original_name || row.name;
+    const enDescription = row.original_description || row.description;
+
+    const { name, description } = await translateAndSaveItem(category, enName, enDescription, lang);
+    
+    return {
+      ...row,
+      name,
+      description
+    };
+  }));
+}
+
+async function queryItemById(schema: string, table: string, id: number, lang: string) {
+  if (lang !== "en") {
+    const nameCol = lang + "_name";
+    const descCol = lang + "_description";
+    const category = getCategoryForTable(table);
+    if (category) {
+      if (table === "feats") {
+        return await sql`
+          SELECT f.*, 
+                 f.name as original_name,
+                 f.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ${sql(schema)}.feats f
+          LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+          WHERE f.id = ${id}
+          LIMIT 1
+        `;
+      } else {
+        return await sql`
+          SELECT s.*, 
+                 s.name as original_name,
+                 s.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ${sql(schema)}.${sql(table)} s
+          LEFT JOIN public.translations t ON t.category = ${category} AND t.en_name = s.name
+          WHERE s.id = ${id}
+          LIMIT 1
+        `;
+      }
+    }
+  }
+  return await sql`
+    SELECT *
+    FROM ${sql(schema)}.${sql(table)}
+    WHERE id = ${id}
+    LIMIT 1
+  `;
+}
+
+async function queryTableList(schema: string, table: string, lang: string) {
+  if (lang !== "en") {
+    const nameCol = lang + "_name";
+    const descCol = lang + "_description";
+    const category = getCategoryForTable(table);
+    if (category) {
+      if (table === "feats") {
+        return await sql`
+          SELECT f.*, 
+                 f.name as original_name,
+                 f.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ${sql(schema)}.feats f
+          LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+        `;
+      } else {
+        return await sql`
+          SELECT s.*, 
+                 s.name as original_name,
+                 s.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ${sql(schema)}.${sql(table)} s
+          LEFT JOIN public.translations t ON t.category = ${category} AND t.en_name = s.name
+        `;
+      }
+    }
+  }
+  return await sql`
+    SELECT *
+    FROM ${sql(schema)}.${sql(table)}
+  `;
+}
+
+async function queryTableListWithFilter(schema: string, table: string, lang: string) {
+  if (schema === "official") {
+    return await queryTableList("official", table, lang);
+  }
+  // schema === "ua"
+  if (lang !== "en") {
+    const nameCol = lang + "_name";
+    const descCol = lang + "_description";
+    const category = getCategoryForTable(table);
+    if (category) {
+      if (table === "feats") {
+        return await sql`
+          SELECT f.*, 
+                 f.name as original_name,
+                 f.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ua.feats f
+          LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+          WHERE NOT EXISTS (
+            SELECT 1 FROM official.feats o 
+            WHERE LOWER(f.name) = LOWER(o.name)
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        `;
+      } else {
+        return await sql`
+          SELECT s.*, 
+                 s.name as original_name,
+                 s.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description
+          FROM ua.${sql(table)} s
+          LEFT JOIN public.translations t ON t.category = ${category} AND t.en_name = s.name
+          WHERE NOT EXISTS (
+            SELECT 1 FROM official.${sql(table)} o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        `;
+      }
+    }
+  }
+  return await sql`
+    SELECT *
+    FROM ${sql(schema)}.${sql(table)}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM official.${sql(table)} o 
+      WHERE LOWER(${sql(schema)}.${sql(table)}.name) = LOWER(o.name)
+         OR LOWER(${sql(schema)}.${sql(table)}.name) LIKE LOWER(o.name) || ' (%'
+         OR LOWER(${sql(schema)}.${sql(table)}.name) LIKE LOWER(o.name) || ' ua%'
+         OR LOWER(${sql(schema)}.${sql(table)}.name) LIKE LOWER(o.name) || ' playtest%'
+    )
+  `;
+}
+
+async function queryTableSearch(schema: string, table: string, search: string, searchPattern: string, hasSource: boolean, lang: string) {
+  const isTranslated = lang !== "en";
+  if (isTranslated) {
+    const nameCol = lang + "_name";
+    const descCol = lang + "_description";
+    const category = getCategoryForTable(table);
+    if (category) {
+      if (table === "feats") {
+        return await sql`
+          SELECT f.*, 
+                 f.name as original_name,
+                 f.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description,
+                 GREATEST(similarity(f.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, f.name), ${search})) as sim
+          FROM ${sql(schema)}.feats f
+          LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+          WHERE f.name % ${search} 
+             OR COALESCE(t.${sql(nameCol)}, f.name) % ${search}
+             OR f.name ILIKE ${searchPattern} 
+             OR COALESCE(t.${sql(nameCol)}, f.name) ILIKE ${searchPattern}
+             OR f.description ILIKE ${searchPattern}
+             OR COALESCE(t.${sql(descCol)}, f.description) ILIKE ${searchPattern}
+        `;
+      } else {
+        return await sql`
+          SELECT s.*, 
+                 s.name as original_name,
+                 s.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description,
+                 GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+          FROM ${sql(schema)}.${sql(table)} s
+          LEFT JOIN public.translations t ON t.category = ${category} AND t.en_name = s.name
+          WHERE s.name % ${search} 
+             OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+             OR s.name ILIKE ${searchPattern} 
+             OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+             OR s.description ILIKE ${searchPattern}
+             OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+             ${hasSource ? sql`OR s.source ILIKE ${searchPattern}` : sql``}
+        `;
+      }
+    }
+  }
+  return hasSource
+    ? await sql`
+        SELECT *, similarity(name, ${search}) as sim
+        FROM ${sql(schema)}.${sql(table)}
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+      `
+    : await sql`
+        SELECT *, similarity(name, ${search}) as sim
+        FROM ${sql(schema)}.${sql(table)}
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern}
+      `;
+}
+
+async function queryTableSearchWithFilter(schema: string, table: string, search: string, searchPattern: string, hasSource: boolean, lang: string) {
+  const isTranslated = lang !== "en";
+  if (schema === "official") {
+    return await queryTableSearch("official", table, search, searchPattern, hasSource, lang);
+  }
+  // schema === "ua"
+  if (isTranslated) {
+    const nameCol = lang + "_name";
+    const descCol = lang + "_description";
+    const category = getCategoryForTable(table);
+    if (category) {
+      if (table === "feats") {
+        return await sql`
+          SELECT f.*, 
+                 f.name as original_name,
+                 f.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description,
+                 GREATEST(similarity(f.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, f.name), ${search})) as sim
+          FROM ua.feats f
+          LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+          WHERE (f.name % ${search} 
+             OR COALESCE(t.${sql(nameCol)}, f.name) % ${search}
+             OR f.name ILIKE ${searchPattern} 
+             OR COALESCE(t.${sql(nameCol)}, f.name) ILIKE ${searchPattern}
+             OR f.description ILIKE ${searchPattern}
+             OR COALESCE(t.${sql(descCol)}, f.description) ILIKE ${searchPattern})
+            AND NOT EXISTS (
+              SELECT 1 FROM official.feats o 
+              WHERE LOWER(f.name) = LOWER(o.name)
+                 OR LOWER(f.name) LIKE LOWER(o.name) || ' (%'
+                 OR LOWER(f.name) LIKE LOWER(o.name) || ' ua%'
+                 OR LOWER(f.name) LIKE LOWER(o.name) || ' playtest%'
+            )
+        `;
+      } else {
+        return await sql`
+          SELECT s.*, 
+                 s.name as original_name,
+                 s.description as original_description,
+                 t.${sql(nameCol)} as translated_name, 
+                 t.${sql(descCol)} as translated_description,
+                 GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+          FROM ua.${sql(table)} s
+          LEFT JOIN public.translations t ON t.category = ${category} AND t.en_name = s.name
+          WHERE (s.name % ${search} 
+             OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+             OR s.name ILIKE ${searchPattern} 
+             OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+             OR s.description ILIKE ${searchPattern}
+             OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+             ${hasSource ? sql`OR s.source ILIKE ${searchPattern}` : sql``})
+            AND NOT EXISTS (
+              SELECT 1 FROM official.${sql(table)} o 
+              WHERE LOWER(s.name) = LOWER(o.name)
+                 OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+                 OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+                 OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+            )
+        `;
+      }
+    }
+  }
+  return hasSource
+    ? await sql`
+        SELECT *, similarity(name, ${search}) as sim
+        FROM ua.${sql(table)}
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.${sql(table)} o 
+            WHERE LOWER(ua.${sql(table)}.name) = LOWER(o.name)
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+      `
+    : await sql`
+        SELECT *, similarity(name, ${search}) as sim
+        FROM ua.${sql(table)}
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.${sql(table)} o 
+            WHERE LOWER(ua.${sql(table)}.name) = LOWER(o.name)
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.${sql(table)}.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+      `;
+}
+
+async function queryGlobalSearch(schema: string, search: string, searchPattern: string, lang: string) {
+  const isTranslated = lang !== "en";
+  const defaultSource = schema === "ua" ? "UA Playtest" : "PHB 2024";
+  const nameCol = lang + "_name";
+  const descCol = lang + "_description";
+
+  if (schema === "official") {
+    if (isTranslated) {
+      return await sql`
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'spells' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.spells s
+        LEFT JOIN public.translations t ON t.category = 'spell' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'species' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.species s
+        LEFT JOIN public.translations t ON t.category = 'species' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT f.id, 
+               f.name as original_name,
+               f.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, f.legacy, f.tags, 'feats' as type, 
+               GREATEST(similarity(f.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, f.name), ${search})) as sim
+        FROM official.feats f
+        LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+        WHERE f.name % ${search} OR COALESCE(t.${sql(nameCol)}, f.name) % ${search}
+           OR f.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, f.name) ILIKE ${searchPattern}
+           OR f.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, f.description) ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'backgrounds' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.backgrounds s
+        LEFT JOIN public.translations t ON t.category = 'background' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'classes' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.classes s
+        LEFT JOIN public.translations t ON t.category = 'class' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'subclasses' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.subclasses s
+        LEFT JOIN public.translations t ON t.category = 'subclass' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, s.legacy, s.tags, 'equipment' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.equipment s
+        LEFT JOIN public.translations t ON t.category = 'equipment' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, s.legacy, s.tags, 'magic_items' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM official.magic_items s
+        LEFT JOIN public.translations t ON t.category = 'magic_item' AND t.en_name = s.name
+        WHERE s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+      `;
+    } else {
+      return await sql`
+        SELECT id, name, description, source, legacy, tags, 'spells' as type, similarity(name, ${search}) as sim
+        FROM official.spells
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'species' as type, similarity(name, ${search}) as sim
+        FROM official.species
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'feats' as type, similarity(name, ${search}) as sim
+        FROM official.feats
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'backgrounds' as type, similarity(name, ${search}) as sim
+        FROM official.backgrounds
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'classes' as type, similarity(name, ${search}) as sim
+        FROM official.classes
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'subclasses' as type, similarity(name, ${search}) as sim
+        FROM official.subclasses
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'equipment' as type, similarity(name, ${search}) as sim
+        FROM official.equipment
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern}
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'magic_items' as type, similarity(name, ${search}) as sim
+        FROM official.magic_items
+        WHERE name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern}
+      `;
+    }
+  } else {
+    // schema === "ua"
+    if (isTranslated) {
+      return await sql`
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'spells' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.spells s
+        LEFT JOIN public.translations t ON t.category = 'spell' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.spells o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'species' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.species s
+        LEFT JOIN public.translations t ON t.category = 'species' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.species o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT f.id, 
+               f.name as original_name,
+               f.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, f.legacy, f.tags, 'feats' as type, 
+               GREATEST(similarity(f.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, f.name), ${search})) as sim
+        FROM ua.feats f
+        LEFT JOIN public.translations t ON (t.category = 'feat' AND t.en_name = f.name) OR (t.category = 'invocation' AND t.en_name = f.name)
+        WHERE (f.name % ${search} OR COALESCE(t.${sql(nameCol)}, f.name) % ${search}
+           OR f.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, f.name) ILIKE ${searchPattern}
+           OR f.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, f.description) ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.feats o 
+            WHERE LOWER(f.name) = LOWER(o.name)
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(f.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'backgrounds' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.backgrounds s
+        LEFT JOIN public.translations t ON t.category = 'background' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.backgrounds o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'classes' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.classes s
+        LEFT JOIN public.translations t ON t.category = 'class' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.classes o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               s.source, s.legacy, s.tags, 'subclasses' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.subclasses s
+        LEFT JOIN public.translations t ON t.category = 'subclass' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern}
+           OR s.source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.subclasses o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, s.legacy, s.tags, 'equipment' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.equipment s
+        LEFT JOIN public.translations t ON t.category = 'equipment' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.equipment o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT s.id, 
+               s.name as original_name,
+               s.description as original_description,
+               t.${sql(nameCol)} as translated_name, 
+               t.${sql(descCol)} as translated_description,
+               ${defaultSource}::text as source, s.legacy, s.tags, 'magic_items' as type, 
+               GREATEST(similarity(s.name, ${search}), similarity(COALESCE(t.${sql(nameCol)}, s.name), ${search})) as sim
+        FROM ua.magic_items s
+        LEFT JOIN public.translations t ON t.category = 'magic_item' AND t.en_name = s.name
+        WHERE (s.name % ${search} OR COALESCE(t.${sql(nameCol)}, s.name) % ${search}
+           OR s.name ILIKE ${searchPattern} OR COALESCE(t.${sql(nameCol)}, s.name) ILIKE ${searchPattern}
+           OR s.description ILIKE ${searchPattern} OR COALESCE(t.${sql(descCol)}, s.description) ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.magic_items o 
+            WHERE LOWER(s.name) = LOWER(o.name)
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+      `;
+    } else {
+      return await sql`
+        SELECT id, name, description, source, legacy, tags, 'spells' as type, similarity(name, ${search}) as sim
+        FROM ua.spells
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.spells o 
+            WHERE LOWER(ua.spells.name) = LOWER(o.name)
+               OR LOWER(ua.spells.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.spells.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.spells.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'species' as type, similarity(name, ${search}) as sim
+        FROM ua.species
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.species o 
+            WHERE LOWER(ua.species.name) = LOWER(o.name)
+               OR LOWER(ua.species.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.species.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.species.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'feats' as type, similarity(name, ${search}) as sim
+        FROM ua.feats
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.feats o 
+            WHERE LOWER(ua.feats.name) = LOWER(o.name)
+               OR LOWER(ua.feats.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.feats.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.feats.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'backgrounds' as type, similarity(name, ${search}) as sim
+        FROM ua.backgrounds
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.backgrounds o 
+            WHERE LOWER(ua.backgrounds.name) = LOWER(o.name)
+               OR LOWER(ua.backgrounds.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.backgrounds.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.backgrounds.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'classes' as type, similarity(name, ${search}) as sim
+        FROM ua.classes
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.classes o 
+            WHERE LOWER(ua.classes.name) = LOWER(o.name)
+               OR LOWER(ua.classes.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.classes.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.classes.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, source, legacy, tags, 'subclasses' as type, similarity(name, ${search}) as sim
+        FROM ua.subclasses
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern} OR source ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.subclasses o 
+            WHERE LOWER(ua.subclasses.name) = LOWER(o.name)
+               OR LOWER(ua.subclasses.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.subclasses.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.subclasses.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'equipment' as type, similarity(name, ${search}) as sim
+        FROM ua.equipment
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.equipment o 
+            WHERE LOWER(ua.equipment.name) = LOWER(o.name)
+               OR LOWER(ua.equipment.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.equipment.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.equipment.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+        
+        UNION ALL
+        
+        SELECT id, name, description, ${defaultSource}::text as source, legacy, tags, 'magic_items' as type, similarity(name, ${search}) as sim
+        FROM ua.magic_items
+        WHERE (name % ${search} OR name ILIKE ${searchPattern} OR description ILIKE ${searchPattern})
+          AND NOT EXISTS (
+            SELECT 1 FROM official.magic_items o 
+            WHERE LOWER(ua.magic_items.name) = LOWER(o.name)
+               OR LOWER(ua.magic_items.name) LIKE LOWER(o.name) || ' (%'
+               OR LOWER(ua.magic_items.name) LIKE LOWER(o.name) || ' ua%'
+               OR LOWER(ua.magic_items.name) LIKE LOWER(o.name) || ' playtest%'
+          )
+      `;
+    }
+  }
+}
+
+async function queryKeywords(schema: string, lang: string) {
+  const isTranslated = lang !== "en";
+  const nameCol = lang + "_name";
+  const spellName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'spell' AND en_name = name), name)` : sql`name`;
+  const featName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE (category = 'feat' OR category = 'invocation') AND en_name = name), name)` : sql`name`;
+  const className = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'class' AND en_name = name), name)` : sql`name`;
+  const subclassName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'subclass' AND en_name = name), name)` : sql`name`;
+  const speciesName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'species' AND en_name = name), name)` : sql`name`;
+  const backgroundName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'background' AND en_name = name), name)` : sql`name`;
+  const equipmentName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'equipment' AND en_name = name), name)` : sql`name`;
+  const magicItemName = isTranslated ? sql`COALESCE((SELECT ${sql(nameCol)} FROM public.translations WHERE category = 'magic_item' AND en_name = name), name)` : sql`name`;
+
+  if (schema === "official" || schema === "all") {
+    const officialResults = await sql`
+      SELECT id, ${spellName} as name, 'spells'::text as type, 'official'::text as schema FROM official.spells
+      UNION ALL
+      SELECT id, ${speciesName} as name, 'species'::text as type, 'official'::text as schema FROM official.species
+      UNION ALL
+      SELECT id, ${featName} as name, 'feats'::text as type, 'official'::text as schema FROM official.feats
+      UNION ALL
+      SELECT id, ${backgroundName} as name, 'backgrounds'::text as type, 'official'::text as schema FROM official.backgrounds
+      UNION ALL
+      SELECT id, ${className} as name, 'classes'::text as type, 'official'::text as schema FROM official.classes
+      UNION ALL
+      SELECT id, ${subclassName} as name, 'subclasses'::text as type, 'official'::text as schema FROM official.subclasses
+      UNION ALL
+      SELECT id, ${equipmentName} as name, 'equipment'::text as type, 'official'::text as schema FROM official.equipment
+      UNION ALL
+      SELECT id, ${magicItemName} as name, 'magic_items'::text as type, 'official'::text as schema FROM official.magic_items
+    `;
+    if (schema === "official") {
+      return officialResults;
+    }
+    const uaResults = await sql`
+      SELECT id, ${spellName} as name, 'spells'::text as type, 'ua'::text as schema FROM ua.spells s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.spells o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${speciesName} as name, 'species'::text as type, 'ua'::text as schema FROM ua.species s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.species o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${featName} as name, 'feats'::text as type, 'ua'::text as schema FROM ua.feats f
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.feats o WHERE LOWER(f.name) = LOWER(o.name) OR LOWER(f.name) LIKE LOWER(o.name) || ' (%' OR LOWER(f.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(f.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${backgroundName} as name, 'backgrounds'::text as type, 'ua'::text as schema FROM ua.backgrounds b
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.backgrounds o WHERE LOWER(b.name) = LOWER(o.name) OR LOWER(b.name) LIKE LOWER(o.name) || ' (%' OR LOWER(b.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(b.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${className} as name, 'classes'::text as type, 'ua'::text as schema FROM ua.classes c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.classes o WHERE LOWER(c.name) = LOWER(o.name) OR LOWER(c.name) LIKE LOWER(o.name) || ' (%' OR LOWER(c.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(c.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${subclassName} as name, 'subclasses'::text as type, 'ua'::text as schema FROM ua.subclasses s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.subclasses o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${equipmentName} as name, 'equipment'::text as type, 'ua'::text as schema FROM ua.equipment e
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.equipment o WHERE LOWER(e.name) = LOWER(o.name) OR LOWER(e.name) LIKE LOWER(o.name) || ' (%' OR LOWER(e.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(e.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${magicItemName} as name, 'magic_items'::text as type, 'ua'::text as schema FROM ua.magic_items m
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.magic_items o WHERE LOWER(m.name) = LOWER(o.name) OR LOWER(m.name) LIKE LOWER(o.name) || ' (%' OR LOWER(m.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(m.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+    `;
+    return [...officialResults, ...uaResults];
+  } else {
+    // schema === "ua"
+    return await sql`
+      SELECT id, ${spellName} as name, 'spells'::text as type, 'ua'::text as schema FROM ua.spells s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.spells o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${speciesName} as name, 'species'::text as type, 'ua'::text as schema FROM ua.species s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.species o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${featName} as name, 'feats'::text as type, 'ua'::text as schema FROM ua.feats f
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.feats o WHERE LOWER(f.name) = LOWER(o.name) OR LOWER(f.name) LIKE LOWER(o.name) || ' (%' OR LOWER(f.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(f.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${backgroundName} as name, 'backgrounds'::text as type, 'ua'::text as schema FROM ua.backgrounds b
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.backgrounds o WHERE LOWER(b.name) = LOWER(o.name) OR LOWER(b.name) LIKE LOWER(o.name) || ' (%' OR LOWER(b.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(b.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${className} as name, 'classes'::text as type, 'ua'::text as schema FROM ua.classes c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.classes o WHERE LOWER(c.name) = LOWER(o.name) OR LOWER(c.name) LIKE LOWER(o.name) || ' (%' OR LOWER(c.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(c.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${subclassName} as name, 'subclasses'::text as type, 'ua'::text as schema FROM ua.subclasses s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.subclasses o WHERE LOWER(s.name) = LOWER(o.name) OR LOWER(s.name) LIKE LOWER(o.name) || ' (%' OR LOWER(s.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(s.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${equipmentName} as name, 'equipment'::text as type, 'ua'::text as schema FROM ua.equipment e
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.equipment o WHERE LOWER(e.name) = LOWER(o.name) OR LOWER(e.name) LIKE LOWER(o.name) || ' (%' OR LOWER(e.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(e.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+      UNION ALL
+      SELECT id, ${magicItemName} as name, 'magic_items'::text as type, 'ua'::text as schema FROM ua.magic_items m
+      WHERE NOT EXISTS (
+        SELECT 1 FROM official.magic_items o WHERE LOWER(m.name) = LOWER(o.name) OR LOWER(m.name) LIKE LOWER(o.name) || ' (%' OR LOWER(m.name) LIKE LOWER(o.name) || ' ua%' OR LOWER(m.name) LIKE LOWER(o.name) || ' playtest%'
+      )
+    `;
+  }
+}
+
+// MAIN DENO HANDLER
+
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight options request
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const table = url.searchParams.get("table");
+    const schema = url.searchParams.get("schema") || "official";
+    const search = url.searchParams.get("search") || "";
+    const id = url.searchParams.get("id") || "";
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 100);
+    const offset = parseInt(url.searchParams.get("offset") || "0");
+    const lang = url.searchParams.get("lang") || "en";
+
+    const allowedTables = ["spells", "species", "feats", "backgrounds", "classes", "subclasses", "equipment", "magic_items", "global", "keywords"];
+    const allowedSchemas = ["official", "ua", "all"];
+
+    // Validate parameters to prevent any unexpected queries
+    if (!table || !allowedTables.includes(table)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid table: '${table}'. Must be one of: ${allowedTables.join(", ")}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    if (!allowedSchemas.includes(schema)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid schema: '${schema}'. Must be one of: ${allowedSchemas.join(", ")}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    if (!databaseUrl) {
+      return new Response(
+        JSON.stringify({ error: "Database connection parameters not configured in the host environment." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    let results;
+
+    if (id) {
+      const itemId = parseInt(id);
+      if (schema === "all") {
+        results = await queryItemById("official", table, itemId, lang);
+        if (results.length === 0) {
+          results = await queryItemById("ua", table, itemId, lang);
+        }
+      } else {
+        results = await queryItemById(schema, table, itemId, lang);
+      }
+      results = await processTranslations(results, table, lang);
+    } else if (table === "keywords") {
+      results = await queryKeywords(schema, lang);
+    } else if (table === "global") {
+      if (!search) {
+        return new Response(
+          JSON.stringify({ error: "Search query is required for global search" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+      const searchPattern = `%${search}%`;
+      const schemas = schema === "all" ? ["official", "ua"] : [schema];
+      
+      const queries = schemas.map(s => queryGlobalSearch(s, search, searchPattern, lang));
+      
+      const resultsArray = await Promise.all(queries);
+      const flatResults = resultsArray.flat();
+      const processed = await processTranslations(flatResults, table, lang);
+      results = processed
+        .sort((a, b) => b.sim - a.sim)
+        .slice(offset, offset + limit);
+        
+    } else if (search) {
+      const searchPattern = `%${search}%`;
+      const hasSource = ["spells", "species", "backgrounds", "classes", "subclasses"].includes(table);
+      if (schema === "all") {
+        const officialResults = await queryTableSearchWithFilter("official", table, search, searchPattern, hasSource, lang);
+        const uaResults = await queryTableSearchWithFilter("ua", table, search, searchPattern, hasSource, lang);
+        const processed = await processTranslations([...officialResults, ...uaResults], table, lang);
+        results = processed
+          .sort((a, b) => b.sim - a.sim)
+          .slice(offset, offset + limit);
+      } else {
+        const dbResults = await queryTableSearchWithFilter(schema, table, search, searchPattern, hasSource, lang);
+        const processed = await processTranslations(dbResults, table, lang);
+        results = processed
+          .sort((a, b) => b.sim - a.sim)
+          .slice(offset, offset + limit);
+      }
+    } else {
+      if (schema === "all") {
+        const officialResults = await queryTableListWithFilter("official", table, lang);
+        const uaResults = await queryTableListWithFilter("ua", table, lang);
+        const processed = await processTranslations([...officialResults, ...uaResults], table, lang);
+        results = processed
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(offset, offset + limit);
+      } else {
+        const dbResults = await queryTableListWithFilter(schema, table, lang);
+        const processed = await processTranslations(dbResults, table, lang);
+        results = processed
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(offset, offset + limit);
+      }
+    }
+
+    return new Response(JSON.stringify(results), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+
+  } catch (err) {
+    console.error("Error executing query:", err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+});

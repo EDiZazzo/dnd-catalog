@@ -1,0 +1,136 @@
+[
+  {
+    "name": "Boots of the Winding Path",
+    "type": "Wondrous Item",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "While wearing these boots, you can take a Bonus Action to teleport up to 15 feet to an unoccupied space you can see. You must have occupied that space at some point during the current turn.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Mind Sharpener",
+    "type": "Ring",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "The item has 4 charges. When you fail a Constitution saving throw to maintain Concentration, you can take a Reaction and expend 1 of the item’s charges to succeed instead. The item regains 1d4 expended charges daily at dawn.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Manifold Tool",
+    "type": "Wondrous Item",
+    "rarity": "Common",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "This tool takes the form of a wrench, screwdriver, or other basic tool. As a Magic action, you can touch the item and transform it into a type of Artisan’s Tools of your choice. Whatever form the tool takes, you have proficiency with it when you use it.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Radiant Weapon",
+    "type": "Weapon (Any Simple or Martial)",
+    "rarity": "Rare",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "This magic weapon grants a +1 bonus to attack and damage rolls made with it. While holding it, you can take a Bonus Action to cause it to shed Bright Light in a 30-foot radius and Dim Light for an additional 30 feet. You can extinguish the light as a Bonus Action.\n\nThe weapon has 4 charges. You can take a Reaction immediately after being hit by an attack roll to expend 1 of the weapon’s charges and force the attacker to make a DC 15 Constitution saving throw. On a failed save, the attacker has the Blinded condition until the end of its next turn. The weapon regains 1d4 expended charges daily at dawn.",
+    "legacy": false,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Helm of Awareness",
+    "type": "Wondrous Item",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "While wearing this helmet, you have Advantage on Initiative rolls.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Repeating Shot",
+    "type": "Weapon (Any Simple or Martial with the Ammunition Property)",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "This magic weapon grants a +1 bonus to attack and damage rolls made with it when it’s used to make a ranged attack roll, and it ignores the Loading property if it has it. If the weapon lacks ammunition, it produces its own, automatically creating one piece of magic ammunition when the wielder makes a ranged attack with it. The ammunition created by the weapon vanishes the instant after it hits or misses a target.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Repulsion Shield",
+    "type": "Armor (Shield)",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "You gain a +1 bonus to Armor Class while wielding this shield. The shield has 4 charges. While holding it, you can take a Reaction immediately after being hit by a melee attack roll to expend 1 of the shield’s charges and push the attacker up to 15 feet away. The shield regains 1d4 expended charges daily at dawn.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Returning Weapon",
+    "type": "Weapon (Any Simple or Martial with the Thrown Property)",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "This magic weapon grants a +1 bonus to attack and damage rolls made with it, and it returns to your hand immediately after it is used to make a ranged attack roll.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  },
+  {
+    "name": "Spell-Refueling Ring",
+    "type": "Ring",
+    "rarity": "Uncommon",
+    "attunement": "No",
+    "price": "Varies",
+    "description": "While wearing this ring, you can recover one expended spell slot as a Bonus Action. The recovered slot can be of level 3 or lower. Once used, the ring can’t be used again until the next dawn.",
+    "legacy": true,
+    "tags": [
+      "item",
+      "ua",
+      "ua1",
+      "ua3"
+    ]
+  }
+]
