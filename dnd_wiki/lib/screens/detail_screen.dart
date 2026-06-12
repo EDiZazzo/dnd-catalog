@@ -25,6 +25,7 @@ class DetailScreen extends StatelessWidget {
     if (item is Subclass) return 'subclasses';
     if (item is Equipment) return 'equipment';
     if (item is MagicItem) return 'magic_items';
+    if (item is ActionItem) return 'actions';
     if (item is GlobalSearchResult) return item.type;
     return '';
   }
@@ -336,6 +337,7 @@ class DetailScreen extends StatelessWidget {
     if (item is Subclass) return 'Subclass Detail';
     if (item is Equipment) return 'Equipment Detail';
     if (item is MagicItem) return 'Magic Item Detail';
+    if (item is ActionItem) return 'Action Detail';
     return 'Detail';
   }
 

@@ -46,6 +46,8 @@ class ApiService {
             return data.map((json) => Equipment.fromJson(json as Map<String, dynamic>)).toList();
           case 'magic_items':
             return data.map((json) => MagicItem.fromJson(json as Map<String, dynamic>)).toList();
+          case 'actions':
+            return data.map((json) => ActionItem.fromJson(json as Map<String, dynamic>)).toList();
           case 'global':
             return data.map((json) => GlobalSearchResult.fromJson(json as Map<String, dynamic>)).toList();
           default:
@@ -98,6 +100,8 @@ class ApiService {
             return Equipment.fromJson(itemJson);
           case 'magic_items':
             return MagicItem.fromJson(itemJson);
+          case 'actions':
+            return ActionItem.fromJson(itemJson);
           default:
             throw Exception('Unsupported table type: $table');
         }

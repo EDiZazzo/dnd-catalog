@@ -368,6 +368,11 @@ class _ListScreenState extends State<ListScreen> {
         classStr,
         style: GoogleFonts.inter(color: widget.themeColor, fontWeight: FontWeight.w600, fontSize: 13),
       );
+    } else if (item is ActionItem) {
+      return Text(
+        TranslationHelper.translate('Action', lang),
+        style: GoogleFonts.inter(color: widget.themeColor, fontWeight: FontWeight.w600, fontSize: 13),
+      );
     }
     
     // Fallback source descriptor

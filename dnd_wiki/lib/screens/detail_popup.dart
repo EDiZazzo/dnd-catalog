@@ -105,6 +105,7 @@ class _DetailPopupState extends State<DetailPopup> {
     if (item is Subclass) return 'subclasses';
     if (item is Equipment) return 'equipment';
     if (item is MagicItem) return 'magic_items';
+    if (item is ActionItem) return 'actions';
     if (item is GlobalSearchResult) return item.type;
     return widget.table ?? '';
   }
@@ -381,6 +382,7 @@ class _DetailPopupState extends State<DetailPopup> {
     if (item is Subclass) return 'Subclass';
     if (item is Equipment) return 'Equipment';
     if (item is MagicItem) return 'Magic Item';
+    if (item is ActionItem) return 'Action';
     if (item is GlobalSearchResult) {
       final type = (item as GlobalSearchResult).type;
       return type[0].toUpperCase() + type.substring(1);

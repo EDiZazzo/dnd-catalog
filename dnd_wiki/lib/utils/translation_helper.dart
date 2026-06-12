@@ -9,6 +9,7 @@ class TranslationHelper {
     'Backgrounds': 'Background',
     'Equipment': 'Equipaggiamento',
     'Magic Items': 'Oggetti Magici',
+    'Actions': 'Azioni',
     'Explore Categories': 'Esplora Categorie',
     'Search Results': 'Risultati di Ricerca',
     'Search spells, classes, magic items globally...': 'Cerca incantesimi, classi, oggetti magici globalmente...',
@@ -101,6 +102,7 @@ class TranslationHelper {
     'Subclass Detail': 'Dettaglio Sottoclasse',
     'Equipment Detail': 'Dettaglio Equipaggiamento',
     'Magic Item Detail': 'Dettaglio Oggetto Magico',
+    'Action Detail': 'Dettaglio Azione',
     
     // Category labels
     'Spell': 'Incantesimo',
@@ -108,6 +110,7 @@ class TranslationHelper {
     'Class': 'Classe',
     'Subclass': 'Sottoclasse',
     'Magic Item': 'Oggetto Magico',
+    'Action': 'Azione',
     'Catalog Item': 'Elemento Catalogo',
     
     // Spell schools
@@ -154,6 +157,7 @@ class TranslationHelper {
     'Backgrounds': 'Baggrunde',
     'Equipment': 'Udstyr',
     'Magic Items': 'Magiske Genstande',
+    'Actions': 'Handlinger',
     'Explore Categories': 'Udforsk Kategorier',
     'Search Results': 'Søgeresultater',
     'Search spells, classes, magic items globally...': 'Søg efter besværgelser, klasser, magiske genstande globalt...',
@@ -246,6 +250,7 @@ class TranslationHelper {
     'Subclass Detail': 'Detaljer om Underklasse',
     'Equipment Detail': 'Detaljer om Udstyr',
     'Magic Item Detail': 'Detaljer om Magisk Genstand',
+    'Action Detail': 'Detaljer om Handling',
     
     // Category labels
     'Spell': 'Besværgelse',
@@ -253,6 +258,7 @@ class TranslationHelper {
     'Class': 'Klasse',
     'Subclass': 'Underklasse',
     'Magic Item': 'Magisk Genstand',
+    'Action': 'Handling',
     'Catalog Item': 'Kataloggenstand',
     
     // Spell schools

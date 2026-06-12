@@ -75,39 +75,39 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Spells',
       dbTable: 'spells',
       icon: Icons.auto_stories_rounded,
-      officialCount: 419,
-      uaCount: 20,
+      officialCount: 399,
+      uaCount: 0,
       color: const Color(0xFFC084FC), // Lavender purple
     ),
     CategoryInfo(
       name: 'Classes',
       dbTable: 'classes',
       icon: Icons.shield_rounded,
-      officialCount: 13,
-      uaCount: 4,
+      officialCount: 12,
+      uaCount: 0,
       color: const Color(0xFF60A5FA), // Soft blue
     ),
     CategoryInfo(
       name: 'Subclasses',
       dbTable: 'subclasses',
       icon: Icons.workspace_premium_rounded,
-      officialCount: 37,
-      uaCount: 64,
+      officialCount: 48,
+      uaCount: 0,
       color: const Color(0xFF818CF8), // Indigo
     ),
     CategoryInfo(
       name: 'Feats',
       dbTable: 'feats',
       icon: Icons.bolt_rounded,
-      officialCount: 168,
-      uaCount: 49,
+      officialCount: 89,
+      uaCount: 0,
       color: const Color(0xFFFBBF24), // Amber
     ),
     CategoryInfo(
       name: 'Species',
       dbTable: 'species',
       icon: Icons.pets_rounded,
-      officialCount: 24,
+      officialCount: 10,
       uaCount: 0,
       color: const Color(0xFF34D399), // Emerald green
     ),
@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Backgrounds',
       dbTable: 'backgrounds',
       icon: Icons.account_box_rounded,
-      officialCount: 59,
+      officialCount: 16,
       uaCount: 0,
       color: const Color(0xFF2DD4BF), // Teal
     ),
@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Equipment',
       dbTable: 'equipment',
       icon: Icons.gavel_rounded,
-      officialCount: 37,
+      officialCount: 88,
       uaCount: 0,
       color: const Color(0xFFFB923C), // Orange
     ),
@@ -131,11 +131,20 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Magic Items',
       dbTable: 'magic_items',
       icon: Icons.key_rounded,
-      officialCount: 375,
-      uaCount: 9,
+      officialCount: 349,
+      uaCount: 0,
       color: const Color(0xFFF472B6), // Pink
     ),
+    CategoryInfo(
+      name: 'Actions',
+      dbTable: 'actions',
+      icon: Icons.directions_run_rounded,
+      officialCount: 10,
+      uaCount: 0,
+      color: const Color(0xFFF87171), // Coral
+    ),
   ];
+
 
   Color _getCategoryColor(String tableType) {
     final cat = categories.firstWhere(
@@ -529,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisCount: isDesktop ? 4 : 2,
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: isDesktop ? 1.4 : 1.05,
+              childAspectRatio: isDesktop ? 1.25 : 0.95,
             ),
             itemCount: categories.length,
             itemBuilder: (context, index) {

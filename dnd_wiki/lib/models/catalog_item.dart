@@ -478,3 +478,27 @@ class GlobalSearchResult extends CatalogItem {
   }
 }
 
+// 10. Action Model
+class ActionItem extends CatalogItem {
+  ActionItem({
+    required super.id,
+    required super.name,
+    required super.source,
+    required super.description,
+    required super.legacy,
+    required super.tags,
+  });
+
+  factory ActionItem.fromJson(Map<String, dynamic> json) {
+    return ActionItem(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      source: json['source'] as String? ?? 'PHB 2024',
+      description: json['description'] as String? ?? '',
+      legacy: json['legacy'] as bool? ?? false,
+      tags: List<String>.from(json['tags'] ?? []),
+    );
+  }
+}
+
+
