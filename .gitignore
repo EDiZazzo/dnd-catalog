@@ -12,3 +12,12 @@ dnd_wiki/.flutter-plugins-dependencies
 dnd_wiki/.packages
 dnd_wiki/app-release.apk
 supabase/.temp/
+
+# Temporary translation downloads and source archives
+data/dnd5e*.zip
+data/dnd5e*_extracted/
+data/translation_chunks/
+data/translations_inserts.sql
+data/dnd5e.*.json
+data/dnd-2024-spells-it.json
+
