@@ -75,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Spells',
       dbTable: 'spells',
       icon: Icons.auto_stories_rounded,
-      officialCount: 399,
+      officialCount: 419,
       uaCount: 0,
       color: const Color(0xFFC084FC), // Lavender purple
     ),
@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Classes',
       dbTable: 'classes',
       icon: Icons.shield_rounded,
-      officialCount: 12,
+      officialCount: 13,
       uaCount: 0,
       color: const Color(0xFF60A5FA), // Soft blue
     ),
@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Subclasses',
       dbTable: 'subclasses',
       icon: Icons.workspace_premium_rounded,
-      officialCount: 48,
+      officialCount: 70,
       uaCount: 0,
       color: const Color(0xFF818CF8), // Indigo
     ),
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Feats',
       dbTable: 'feats',
       icon: Icons.bolt_rounded,
-      officialCount: 89,
+      officialCount: 161,
       uaCount: 0,
       color: const Color(0xFFFBBF24), // Amber
     ),
@@ -107,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Species',
       dbTable: 'species',
       icon: Icons.pets_rounded,
-      officialCount: 10,
+      officialCount: 18,
       uaCount: 0,
       color: const Color(0xFF34D399), // Emerald green
     ),
@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Backgrounds',
       dbTable: 'backgrounds',
       icon: Icons.account_box_rounded,
-      officialCount: 16,
+      officialCount: 53,
       uaCount: 0,
       color: const Color(0xFF2DD4BF), // Teal
     ),
@@ -131,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
       name: 'Magic Items',
       dbTable: 'magic_items',
       icon: Icons.key_rounded,
-      officialCount: 349,
+      officialCount: 364,
       uaCount: 0,
       color: const Color(0xFFF472B6), // Pink
     ),
