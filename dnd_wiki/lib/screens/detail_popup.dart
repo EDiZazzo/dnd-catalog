@@ -575,7 +575,162 @@ class _DetailPopupState extends State<DetailPopup> {
       );
     }
 
+    if (item is Class) {
+      final c = item as Class;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSubclassesSection(c),
+        ],
+      );
+    }
+
     return const SizedBox.shrink();
+  }
+
+  Widget _buildSubclassesSection(Class c) {
+    final lang = ApiService.currentLanguage;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          TranslationHelper.translate('Subclasses', lang),
+          style: GoogleFonts.outfit(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 10),
+        FutureBuilder<List<CatalogItem>>(
+          future: ApiService.fetchItems(
+            table: 'subclasses',
+            schema: 'all',
+            limit: 150,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueGrey),
+                  ),
+                ),
+              );
+            }
+            if (snapshot.hasError) {
+              return Text(
+                'Error loading subclasses: ${snapshot.error}',
+                style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+              );
+            }
+            final list = snapshot.data ?? [];
+            final subclasses = list
+                .whereType<Subclass>()
+                .where((sub) => sub.className.toLowerCase() == c.name.toLowerCase())
+                .toList();
+
+            if (subclasses.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(
+                  TranslationHelper.translate('No subclasses available.', lang),
+                  style: GoogleFonts.inter(color: Colors.blueGrey, fontSize: 13),
+                ),
+              );
+            }
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 1,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 5.2,
+              ),
+              itemCount: subclasses.length,
+              itemBuilder: (context, index) {
+                final sub = subclasses[index];
+                final isUa = sub.source.toLowerCase().contains('ua') || sub.source.toLowerCase().contains('playtest');
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      DetailPopup.show(context, item: sub, themeColor: widget.themeColor);
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B).withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.blueGrey.shade800,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  sub.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  TranslationHelper.translate(sub.source, lang),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    color: Colors.blueGrey.shade400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isUa)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.amber.withOpacity(0.3), width: 0.8),
+                              ),
+                              child: Text(
+                                'UA',
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
   }
 
   Widget _buildDetailBlock(String title, String content) {
